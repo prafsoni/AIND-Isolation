@@ -33,7 +33,25 @@ def custom_score(game, player):
     float
         The heuristic value of the current game state to the specified player.
     """
-    raise NotImplementedError
+    # raise NotImplementedError
+    if game.is_loser(player=player):
+        return float("-inf")
+
+    if game.is_winner(player=player):
+        return float("inf")
+    center = (int(game.width / 2), int(game.height / 2))
+    opp = game.get_opponent(player=player)
+    own_moves = len(game.get_legal_moves(player=player))
+    opp_moves = len(game.get_legal_moves(opp))
+
+    weighted_improved = lambda: float(4 * own_moves - 5 * opp_moves)
+
+    manhattan_distance = lambda x, y=center: abs((y[0] - x[0]) + (y[1] - x[1]))
+
+    own_loc = game.get_player_location(player=player)
+    opp_loc = game.get_player_location(opp)
+
+    return 5 * weighted_improved() - 3 * ((manhattan_distance(own_loc, opp_loc) + manhattan_distance(own_loc)) / 2)
 
 
 class CustomPlayer:
@@ -94,4 +112,107 @@ class CustomPlayer:
             (-1, -1) if there are no available legal moves.
         """
         # OPTIONAL: Finish this function!
-        raise NotImplementedError
+        self.time_left = time_left
+
+        legal_moves = game.get_legal_moves()
+
+        center = (int(game.width / 2), int(game.height / 2))
+
+        if len(legal_moves) == 0:
+            return -1, -1
+
+        if center in legal_moves:
+            return center
+
+        best_move = random.choice(legal_moves)
+
+        try:
+            for depth in range(game.width * game.height + 1):
+                if self.time_left() < self.TIMER_THRESHOLD:
+                    return best_move
+                _, best_move = self.search(game, depth + 1)
+
+        except SearchTimeout:
+            return best_move
+
+        # Return the best move from the last completed search iteration
+        return best_move
+        # raise NotImplementedError
+
+    def search(self, game, depth, alpha=float("-inf"), beta=float("inf"), maximizing_player=True):
+        """Implementation minimax search with alpha-beta pruning.
+
+        Parameters
+        ----------
+        game : isolation.Board
+            An instance of the Isolation game `Board` class representing the
+            current game state
+
+        depth : int
+            Depth is an integer representing the maximum number of plies to
+            search in the game tree before aborting
+
+        alpha : float
+            Alpha limits the lower bound of search on minimizing layers
+
+        beta : float
+            Beta limits the upper bound of search on maximizing layers
+
+        maximizing_player : bool
+            Flag indicating whether the current search depth corresponds to a
+            maximizing layer (True) or a minimizing layer (False)
+
+        Returns
+        -------
+        float
+            The score for the current search branch
+
+        tuple(int, int)
+            The best move for the current branch; (-1, -1) for no legal moves
+        """
+        if self.time_left() < self.TIMER_THRESHOLD:
+            raise SearchTimeout()
+
+        score = None
+        best_moves = None
+
+        center = (int(game.width / 2), int(game.height / 2))
+
+        moves = game.get_legal_moves()
+
+        if center in moves:
+            return float("inf"), center
+
+        if depth == 0 or len(moves) <= 0:
+            return self.score(game, self), (-1, -1)
+
+        if maximizing_player:
+            score = float("-inf")
+            best_moves = [(-1, -1)]
+            for move in moves:
+                future_game = game.forecast_move(move)
+                future_score, _ = self.search(future_game, depth - 1, alpha, beta, not maximizing_player)
+                if future_score > score:
+                    best_moves = [move]
+                elif future_score == score:
+                    best_moves.append(move)
+                score = max(score, future_score)
+                alpha = max(alpha, score)
+                if beta <= alpha:
+                    break
+            return score, random.choice(best_moves)
+        else:
+            score = float("inf")
+            best_moves = [(-1, -1)]
+            for move in moves:
+                future_game = game.forecast_move(move)
+                future_score, _ = self.search(future_game, depth - 1, alpha, beta, not maximizing_player)
+                if future_score < score:
+                    best_moves = [move]
+                elif future_score == score:
+                    best_moves.append(move)
+                score = min(score, future_score)
+                beta = min(beta, score)
+                if beta <= alpha:
+                    break
+            return score, random.choice(best_moves)
